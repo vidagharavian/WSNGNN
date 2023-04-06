@@ -26,14 +26,15 @@ def evaluate(model, graph, features, labels, mask,method_name):
         correct = torch.sum(indices == labels)
         return correct.item() * 1.0 / len(labels)
 
-method_name ='DiGCN_Inception_Block_Ranking'
+#method_name ='DiGCN_Inception_Block_Ranking'
+method_name="SAGE"
 if method_name == 'SAGE':
     model = SAGE(in_feats=n_features, hid_feats=100, out_feats=n_labels)
 else:
     model = DiGCN_Inception_Block_Ranking(num_features=n_features,embedding_dim=32,out=n_labels,dropout=0.2)
 opt = torch.optim.Adam(model.parameters())
 
-for epoch in range(100):
+for epoch in range(50):
     model.train()
     # forward propagation by using all nodes
     if method_name =='SAGE':
@@ -43,10 +44,12 @@ for epoch in range(100):
     # compute loss
     loss = F.cross_entropy(logits[train_mask], node_labels[train_mask])
     # compute validation accuracy
-    acc = evaluate(model, graph, node_features, node_labels, test_mask,method_name)
+    acc = evaluate(model, graph, node_features, node_labels, valid_mask,method_name)
     print("accuracy: "+str(acc))
     # backward propagation
     opt.zero_grad()
     loss.backward()
     opt.step()
     print("loss: "+str(loss.item()))
+acc = evaluate(model, graph, node_features, node_labels, test_mask,method_name)
+print("test accuracy: "+str(acc))
