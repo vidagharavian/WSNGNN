@@ -21,8 +21,9 @@ class WSNDataset(DGLDataset):
 
     def process(self):
         nodes_data = pd.read_csv('./features.csv')
-        node_labels = pd.read_csv("label.csv")
-        node_labels = torch.from_numpy(node_labels['Attack type'].astype("category").cat.codes.to_numpy()).type(
+        a = pd.read_csv("label.csv")
+        print((a[a['Attack type'] == "Normal"]).shape)
+        node_labels = torch.from_numpy(a['Attack type'].astype("category").cat.codes.to_numpy()).type(
             torch.FloatTensor)
         # nodes_data.reset_index(inplace=True)
         new_Dst = []
@@ -47,15 +48,16 @@ class WSNDataset(DGLDataset):
 
         n_nodes = nodes_data.shape[0]
         n_train = int(n_nodes * 0.6)
-        n_val = int(n_nodes * 0.2)
+        # n_val = int(n_nodes * 0.2)
         train_mask = torch.zeros(n_nodes, dtype=torch.bool)
         val_mask = torch.zeros(n_nodes, dtype=torch.bool)
         test_mask = torch.zeros(n_nodes, dtype=torch.bool)
         train_mask[:n_train] = True
-        val_mask[n_train: n_train + n_val] = True
-        test_mask[n_train + n_val:] = True
+        # val_mask[n_train: n_train + n_val] = True
+        # test_mask[n_train + n_val:] = True
+        test_mask[n_train:] = True
         self.graph.ndata["train_mask"] = train_mask
-        self.graph.ndata["val_mask"] = val_mask
+        # self.graph.ndata["val_mask"] = val_mask
         self.graph.ndata["test_mask"] = test_mask
 
     def __getitem__(self, i):

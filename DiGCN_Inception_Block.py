@@ -5,6 +5,11 @@ from torch.nn import Linear
 
 from DiGCNConv import DiGCNConv
 
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+    torch.cuda.set_device(device)
+else:
+    device = torch.device("cpu")
 
 class DiGCN_InceptionBlock(torch.nn.Module):
     r"""An implementation of the inception block model from the
@@ -16,9 +21,9 @@ class DiGCN_InceptionBlock(torch.nn.Module):
     """
     def __init__(self, in_dim, out_dim):
         super(DiGCN_InceptionBlock, self).__init__()
-        self.ln = Linear(in_dim, out_dim)
-        self.conv1 = DiGCNConv(in_dim, out_dim)
-        self.conv2 = DiGCNConv(in_dim, out_dim)
+        self.ln = Linear(in_dim, out_dim).to(device)
+        self.conv1 = DiGCNConv(in_dim, out_dim).to(device)
+        self.conv2 = DiGCNConv(in_dim, out_dim).to(device)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -40,8 +45,8 @@ class DiGCN_InceptionBlock(torch.nn.Module):
         Return types:
             * x0, x1, x2 (PyTorch FloatTensor) - Hidden representations.
         """
-        x=x.type(torch.FloatTensor)
-        x0 = self.ln(x)
-        x1 = self.conv1(x, edge_index, edge_weight)
-        x2 = self.conv2(x, edge_index2, edge_weight2)
+        x=x.type(torch.FloatTensor).to(device)
+        x0 = self.ln(x).to(device)
+        x1 = self.conv1(x, edge_index, edge_weight).to(device)
+        x2 = self.conv2(x, edge_index2, edge_weight2).to(device)
         return x0, x1, x2
