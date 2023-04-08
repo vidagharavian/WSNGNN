@@ -94,3 +94,5 @@ class SAGE(nn.Module):
         h = F.relu(h)
         h = self.conv2(graph.to(device), h)
         return h
+
+

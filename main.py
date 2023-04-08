@@ -4,6 +4,7 @@ import pandas as pd
 import torch
 from dgl import load_graphs
 
+from get_adj import get_second_directed_adj
 from model import DiGCN_Inception_Block_Ranking, SAGE
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, f1_score, classification_report
@@ -36,8 +37,19 @@ def evaluate(model, graph, features, labels, mask, method_name):
         if method_name == 'SAGE':
             logits = model(graph, features).to(device)
         else:
-            logits = model(graph.edges(
-            ), (graph.edata['weight'], graph.edata['weight']), features).to(device)
+            edge_index = graph.edges()
+            edge_weights = torch.FloatTensor(graph.edata['weight'])
+            edge_index1 = edge_index.clone().to(device)
+            edge_weights1 = edge_weights.clone().to(device)
+            edge_index2, edge_weights2 = get_second_directed_adj(edge_index,features.shape[0],
+                                                                 features.dtype,
+                                                                 edge_weights)
+            edge_index2 = edge_index2.to(device)
+            edge_weights2 = edge_weights2.to(device)
+            edge_index = (edge_index1, edge_index2)
+            edge_weights = (edge_weights1, edge_weights2)
+            del edge_index2, edge_weights2
+            logits = model(edge_index,edge_weights, features).to(device)
         logits = logits[mask]
         labels = labels[mask]
 
@@ -60,8 +72,19 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         if method_name == 'SAGE':
             logits = model(graph, features).to(device)
         else:
-            logits = model(graph.edges(
-            ), (graph.edata['weight'], graph.edata['weight']), features).to(device)
+            edge_index = graph.edges()
+            edge_weights = torch.FloatTensor(graph.edata['weight'])
+            edge_index1 = edge_index.clone().to(device)
+            edge_weights1 = edge_weights.clone().to(device)
+            edge_index2, edge_weights2 = get_second_directed_adj(edge_index, features.shape[0],
+                                                                 features.dtype,
+                                                                 edge_weights)
+            edge_index2 = edge_index2.to(device)
+            edge_weights2 = edge_weights2.to(device)
+            edge_index = (edge_index1, edge_index2)
+            edge_weights = (edge_weights1, edge_weights2)
+            del edge_index2, edge_weights2
+            logits = model(edge_index, edge_weights, features).to(device)
         logits = logits[mask]
         labels = labels[mask]
 
@@ -78,8 +101,8 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         return classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
 
 
-# method_name = 'DiGCN_Inception_Block_Ranking'
-method_name = "SAGE"
+method_name = 'DiGCN_Inception_Block_Ranking'
+# method_name = "SAGE"
 EPOCH = 500
 if method_name == 'SAGE':
     model = SAGE(in_feats=n_features, hid_feats=100,
@@ -96,7 +119,19 @@ for epoch in range(EPOCH):
     if method_name == 'SAGE':
         logits = model(graph, node_features).to(device)
     else:
-        logits = model(graph.edges(), (graph.edata['weight'], graph.edata['weight']), node_features).to(device)
+        edge_index = graph.edges()
+        edge_weights = torch.FloatTensor(graph.edata['weight'])
+        edge_index1 = edge_index.clone().to(device)
+        edge_weights1 = edge_weights.clone().to(device)
+        edge_index2, edge_weights2 = get_second_directed_adj(edge_index, node_features.shape[0],
+                                                             node_features.dtype,
+                                                             edge_weights)
+        edge_index2 = edge_index2.to(device)
+        edge_weights2 = edge_weights2.to(device)
+        edge_index = (edge_index1, edge_index2)
+        edge_weights = (edge_weights1, edge_weights2)
+        del edge_index2, edge_weights2
+        logits = model(edge_index, edge_weights, node_features).to(device)
     # compute loss
     # train loss
     loss = F.cross_entropy(logits[train_mask], node_labels[train_mask])
