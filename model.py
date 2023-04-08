@@ -81,16 +81,49 @@ class DiGCN_Inception_Block_Ranking(nn.Module):
 
 
 class SAGE(nn.Module):
-    def __init__(self, in_feats, hid_feats, out_feats):
+    def __init__(self, in_feats, hid_feats, hid2_feats, out_feats):
         super().__init__()
         self.conv1 = dglnn.SAGEConv(
             in_feats=in_feats, out_feats=hid_feats, aggregator_type='mean')
         self.conv2 = dglnn.SAGEConv(
-            in_feats=hid_feats, out_feats=out_feats, aggregator_type='mean')
+            in_feats=hid_feats, out_feats=hid2_feats, aggregator_type='mean')
+        self.conv3 = dglnn.SAGEConv(
+            in_feats=hid2_feats, out_feats=out_feats, aggregator_type='mean')
 
     def forward(self, graph, inputs):
         # inputs are features of nodes
         h = self.conv1(graph.to(device), inputs.to(device))
         h = F.relu(h)
+        #h = F.dropout(h, p=0.2)
         h = self.conv2(graph.to(device), h)
+        h = F.relu(h)
+        #h = F.dropout(h, p=0.2)
+        h = self.conv3(graph.to(device), h)
+        return h
+    
+
+class SAGE_FCL(nn.Module):
+    def __init__(self, in_feats, hid_feats, hid2_feats, out_feats):
+        super().__init__()
+        self.conv1 = dglnn.SAGEConv(
+            in_feats=in_feats, out_feats=hid_feats, aggregator_type='mean')
+        self.conv2 = dglnn.SAGEConv(
+            in_feats=hid_feats, out_feats=hid2_feats, aggregator_type='mean')
+        #self.conv3 = dglnn.SAGEConv(in_feats=hid2_feats, out_feats=1024, aggregator_type='mean')
+        
+        self.dense1 = nn.Linear(hid2_feats, 32)
+        self.dense2 = nn.Linear(32, out_feats)
+
+    def forward(self, graph, inputs):
+        # inputs are features of nodes
+        h = self.conv1(graph.to(device), inputs.to(device))
+        h = F.relu(h)
+        #h = F.dropout(h, p=0.2)
+        h = self.conv2(graph.to(device), h)
+        h = F.relu(h)
+        #h = F.dropout(h, p=0.2)
+        #h = self.conv3(graph.to(device), h)
+        h = self.dense1(h)
+        h = F.relu(h)
+        h = self.dense2(h)
         return h

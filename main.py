@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from dgl import load_graphs
 
-from model import DiGCN_Inception_Block_Ranking, SAGE
+from model import SAGE_FCL, DiGCN_Inception_Block_Ranking, SAGE
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, f1_score, classification_report
 
@@ -20,7 +20,7 @@ else:
 graph, label_dict = load_graphs("./data.bin", [0])
 graph = graph[0].to(device)
 node_features = graph.ndata['feat'].to(device)
-node_labels = graph.ndata['label'].type(torch.LongTensor).to(device)
+node_labels = graph.ndata['label'].to(device).type(torch.long)
 train_mask = graph.ndata['train_mask'].to(device)
 valid_mask = graph.ndata['val_mask'].to(device)
 test_mask = graph.ndata['test_mask'].to(device)
@@ -33,7 +33,7 @@ def evaluate(model, graph, features, labels, mask, method_name):
     mask = mask.to(torch.bool)
     model.eval()
     with torch.no_grad():
-        if method_name == 'SAGE':
+        if method_name == 'SAGE' or method_name == 'SAGE_FCL':
             logits = model(graph, features).to(device)
         else:
             logits = model(graph.edges(
@@ -48,7 +48,6 @@ def evaluate(model, graph, features, labels, mask, method_name):
         # return correct.item() * 1.0 / len(labels)
         y_pred = torch.argmax(logits, 1).cpu().numpy()
         y_true = labels.cpu().numpy()
-        print(y_pred[0], y_true[0])
         # , multi_class="ovr")
         return f1_score(y_true, y_pred, average="macro")
 
@@ -57,7 +56,7 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
     mask = mask.to(torch.bool)
     model.eval()
     with torch.no_grad():
-        if method_name == 'SAGE':
+        if method_name == 'SAGE' or method_name == 'SAGE_FCL':
             logits = model(graph, features).to(device)
         else:
             logits = model(graph.edges(
@@ -72,17 +71,20 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         # return correct.item() * 1.0 / len(labels)
         y_pred = torch.argmax(logits, 1).cpu().numpy()
         y_true = labels.cpu().numpy()
-        print(y_pred[0], y_true[0])
         target_names = ['Blackhole', 'Flooding',
                         'Grayhole', 'Normal', 'Scheduling']
         return classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
 
 
 # method_name = 'DiGCN_Inception_Block_Ranking'
-method_name = "SAGE"
+# method_name = "SAGE"
+method_name = "SAGE_FCL"
 EPOCH = 500
 if method_name == 'SAGE':
-    model = SAGE(in_feats=n_features, hid_feats=100,
+    model = SAGE(in_feats=n_features, hid_feats=128, hid2_feats=64,
+                 out_feats=n_labels).to(device)
+elif method_name == 'SAGE_FCL':
+    model = SAGE_FCL(in_feats=n_features, hid_feats=128, hid2_feats=64,
                  out_feats=n_labels).to(device)
 else:
     model = DiGCN_Inception_Block_Ranking(
@@ -93,16 +95,20 @@ hist_train_loss, hist_test_loss, hist_train_f1, hist_test_f1=[], [], [], []
 for epoch in range(EPOCH):
     model.train()
     # forward propagation by using all nodes
-    if method_name == 'SAGE':
+    if method_name == 'SAGE' or method_name == 'SAGE_FCL':
         logits = model(graph, node_features).to(device)
     else:
         logits = model(graph.edges(), (graph.edata['weight'], graph.edata['weight']), node_features).to(device)
     # compute loss
     # train loss
+    # m=F.log_softmax(logits[train_mask], dim=1).to(device).type(torch.long)
+    # loss = F.nll_loss(torch.log_softmax(logits[train_mask], 1), node_labels[train_mask])
     loss = F.cross_entropy(logits[train_mask], node_labels[train_mask])
     print("Train Loss:", loss.item())
     hist_train_loss.append(loss.item())
     # test loss
+    # m=torch.argmax(logits[test_mask], dim=1).type(torch.float64).to(device)
+    # loss_test = F.nll_loss(torch.log_softmax(logits[test_mask], 1), node_labels[test_mask])
     loss_test = F.cross_entropy(logits[test_mask], node_labels[test_mask])
     print("Test Loss:", loss_test.item())
     hist_test_loss.append(loss_test.item())
@@ -129,11 +135,13 @@ print("Train dataset classification report")
 report=final_classification_report(model, graph, node_features, node_labels, train_mask, method_name)
 df_report=pd.DataFrame(report).transpose()
 df_report.to_csv("train_classification_report.csv")
+print(df_report)
 
 print("Test dataset classification report")
 report=final_classification_report(model, graph, node_features, node_labels, test_mask, method_name)
 df_report=pd.DataFrame(report).transpose()
 df_report.to_csv("test_classification_report.csv")
+print(df_report)
 
 np.savez("hist_train_test.npz",
           hist_train_loss=hist_train_loss,
