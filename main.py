@@ -72,7 +72,24 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         target_names = ['Blackhole', 'Flooding', 'Grayhole', 'Normal', 'Scheduling']
         np.savez("y_pred_true.npz", y_true=y_true, y_pred=y_pred, target_names=target_names)
         
-        return classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
+        cm= classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
+        tp = np.diagonal(cm)
+        fp = cm.sum(axis=0) - tp
+        fn = cm.sum(axis=1) - tp
+        tn = cm.sum() - (tp + fp + fn)
+        # Compute TPR and FPR for each class
+        tpr = tp / (tp + fn)
+        fpr = fp / (fp + tn)
+        # Compute accuracy
+        accuracy = np.sum(tp) / np.sum(cm)
+        print("True Positives:", tp)
+        print("True Negatives:", tn)
+        print("False Positives:", fp)
+        print("False Negatives:", fn)
+        print("True Positive Rate:", tpr)
+        print("False Positive Rate:", fpr)
+        print("Accuracy:", accuracy)
+        return cm
 
 
 # method_name = 'DiGCN_Inception_Block_Ranking'
