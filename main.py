@@ -36,8 +36,7 @@ def evaluate(model, graph, features, labels, mask, method_name):
         if method_name == 'SAGE' or method_name == 'SAGE_FCL':
             logits = model(graph, features).to(device)
         else:
-            logits = model(graph.edges(
-            ), (graph.edata['weight'], graph.edata['weight']), features).to(device)
+            logits = model(graph.edges(), (graph.edata['weight'], graph.edata['weight']), node_features).to(device)
         logits = logits[mask]
         labels = labels[mask]
 
@@ -59,8 +58,7 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         if method_name == 'SAGE' or method_name == 'SAGE_FCL':
             logits = model(graph, features).to(device)
         else:
-            logits = model(graph.edges(
-            ), (graph.edata['weight'], graph.edata['weight']), features).to(device)
+            logits = model(graph.edges(), (graph.edata['weight'], graph.edata['weight']), node_features).to(device)
         logits = logits[mask]
         labels = labels[mask]
 
@@ -71,15 +69,15 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         # return correct.item() * 1.0 / len(labels)
         y_pred = torch.argmax(logits, 1).cpu().numpy()
         y_true = labels.cpu().numpy()
-        target_names = ['Blackhole', 'Flooding',
-                        'Grayhole', 'Normal', 'Scheduling']
+        target_names = ['Blackhole', 'Flooding', 'Grayhole', 'Normal', 'Scheduling']
+        np.savez("y_pred_true.npz", y_true=y_true, y_pred=y_pred, target_names=target_names)
+        
         return classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
 
 
 # method_name = 'DiGCN_Inception_Block_Ranking'
-# method_name = "SAGE"
-method_name = "SAGE_FCL"
-EPOCH = 500
+method_name = "SAGE"
+EPOCH = 1000
 if method_name == 'SAGE':
     model = SAGE(in_feats=n_features, hid_feats=128, hid2_feats=64,
                  out_feats=n_labels).to(device)
@@ -89,10 +87,14 @@ elif method_name == 'SAGE_FCL':
 else:
     model = DiGCN_Inception_Block_Ranking(
         num_features=n_features, embedding_dim=32, out=n_labels, dropout=0.2).to(device)
-opt = torch.optim.Adam(model.parameters())
+#opt = torch.optim.Adam(model.parameters(), lr=0.001)
+opt = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=5e-4)
+#opt = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 train_mask = train_mask.to(torch.bool).to(device)
 hist_train_loss, hist_test_loss, hist_train_f1, hist_test_f1=[], [], [], []
 for epoch in range(EPOCH):
+    #if epoch == int(EPOCH * (2/3)):
+    #    opt = torch.optim.Adam(model.parameters(), lr=0.0001)
     model.train()
     # forward propagation by using all nodes
     if method_name == 'SAGE' or method_name == 'SAGE_FCL':
@@ -101,15 +103,13 @@ for epoch in range(EPOCH):
         logits = model(graph.edges(), (graph.edata['weight'], graph.edata['weight']), node_features).to(device)
     # compute loss
     # train loss
-    # m=F.log_softmax(logits[train_mask], dim=1).to(device).type(torch.long)
-    # loss = F.nll_loss(torch.log_softmax(logits[train_mask], 1), node_labels[train_mask])
-    loss = F.cross_entropy(logits[train_mask], node_labels[train_mask])
+    #loss = F.nll_loss(F.log_softmax(logits[train_mask], dim=1), node_labels[train_mask])
+    loss = F.cross_entropy(F.log_softmax(logits[train_mask], dim=1), node_labels[train_mask])
     print("Train Loss:", loss.item())
     hist_train_loss.append(loss.item())
     # test loss
-    # m=torch.argmax(logits[test_mask], dim=1).type(torch.float64).to(device)
-    # loss_test = F.nll_loss(torch.log_softmax(logits[test_mask], 1), node_labels[test_mask])
-    loss_test = F.cross_entropy(logits[test_mask], node_labels[test_mask])
+    #loss_test = F.nll_loss(F.log_softmax(logits[test_mask], dim=1), node_labels[test_mask])
+    loss_test = F.cross_entropy(F.log_softmax(logits[test_mask], dim=1), node_labels[test_mask])
     print("Test Loss:", loss_test.item())
     hist_test_loss.append(loss_test.item())
     # compute validation accuracy

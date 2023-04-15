@@ -1,0 +1,9 @@
+,precision,recall,f1-score,support
+Blackhole,0.66,1.00,0.80,4635.00
+Flooding,0.96,0.92,0.94,1429.00
+Grayhole,0.96,0.53,0.68,5351.00
+Normal,1.00,1.00,1.00,135539.00
+Scheduling,0.99,0.94,0.97,2911.00
+accuracy,0.98,0.98,0.98,0.98
+macro avg,0.91,0.88,0.88,149865.00
+weighted avg,0.98,0.98,0.98,149865.00
