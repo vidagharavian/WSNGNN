@@ -6,7 +6,7 @@ from dgl import load_graphs
 
 from model import SAGE_FCL, DiGCN_Inception_Block_Ranking, SAGE
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, f1_score, classification_report
+from sklearn.metrics import roc_auc_score, f1_score, classification_report, confusion_matrix
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -51,7 +51,7 @@ def evaluate(model, graph, features, labels, mask, method_name):
         return f1_score(y_true, y_pred, average="macro")
 
 
-def final_classification_report(model, graph, features, labels, mask, method_name):
+def final_classification_report(model, graph, features, labels, mask, method_name,):
     mask = mask.to(torch.bool)
     model.eval()
     with torch.no_grad():
@@ -71,8 +71,8 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         y_true = labels.cpu().numpy()
         target_names = ['Blackhole', 'Flooding', 'Grayhole', 'Normal', 'Scheduling']
         np.savez("y_pred_true.npz", y_true=y_true, y_pred=y_pred, target_names=target_names)
-        
-        cm= classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
+
+        cm = confusion_matrix(y_true, y_pred)
         tp = np.diagonal(cm)
         fp = cm.sum(axis=0) - tp
         fn = cm.sum(axis=1) - tp
@@ -80,21 +80,34 @@ def final_classification_report(model, graph, features, labels, mask, method_nam
         # Compute TPR and FPR for each class
         tpr = tp / (tp + fn)
         fpr = fp / (fp + tn)
+        fnr = fn / (tp + fn)
+        tnr = tn / (tn + fp)
         # Compute accuracy
-        accuracy = np.sum(tp) / np.sum(cm)
+        accuracy = (tp+tn)/(tp+fp+fn+tn)
+        all ={}
+        for i in range(len(tpr)):
+            all[target_names[i]]={"tpr":tpr[i],"fpr":fpr[i],"fnr":fnr[i],"tnr":tnr[i],"accuracy":accuracy[i]}
         print("True Positives:", tp)
         print("True Negatives:", tn)
         print("False Positives:", fp)
         print("False Negatives:", fn)
-        print("True Positive Rate:", tpr)
-        print("False Positive Rate:", fpr)
         print("Accuracy:", accuracy)
+        cm=classification_report(y_true, y_pred, target_names=target_names, digits=3, output_dict=True)
+        for i,j in cm.items():
+            try:
+                cm[i]["tpr"] =all[i]["tpr"]
+                cm[i]["fpr"] = all[i]["fpr"]
+                cm[i]["fnr"] = all[i]["fnr"]
+                cm[i]["tnr"] = all[i]["tnr"]
+                cm[i]["accuracy"] = all[i]["accuracy"]
+            except:
+                pass
         return cm
 
 
 # method_name = 'DiGCN_Inception_Block_Ranking'
 method_name = "SAGE"
-EPOCH = 1000
+EPOCH = 5
 if method_name == 'SAGE':
     model = SAGE(in_feats=n_features, hid_feats=128, hid2_feats=64,
                  out_feats=n_labels).to(device)
