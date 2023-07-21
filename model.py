@@ -81,19 +81,19 @@ class DiGCN_Inception_Block_Ranking(nn.Module):
 
 
 class SAGE(nn.Module):
-    def __init__(self, in_feats, hid_feats, hid2_feats, out_feats):
+    def __init__(self,in_feats, h_feats, num_classes):
         super().__init__()
-        self.conv1 = dglnn.SAGEConv(
-            in_feats=in_feats, out_feats=hid_feats, aggregator_type='mean')
-        self.conv2 = dglnn.SAGEConv(
-            in_feats=hid_feats, out_feats=out_feats, aggregator_type='mean')
+        self.conv1 = dglnn.SAGEConv(in_feats, h_feats, aggregator_type='mean')
+        self.conv2 = dglnn.SAGEConv(h_feats, num_classes, aggregator_type='mean')
+        self.h_feats = h_feats
 
-    def forward(self, graph, inputs):
+    def forward(self, mfgs, x):
         # inputs are features of nodes
-        h = self.conv1(graph.to(device), inputs.to(device))
+        h_dst = x[:mfgs[0].num_dst_nodes()]  # <---
+        h = self.conv1(mfgs[0], (x, h_dst))  # <---
         h = F.relu(h)
-        #h = F.dropout(h, p=0.02, training=self.training)
-        h = self.conv2(graph.to(device), h)
+        h_dst = h[:mfgs[1].num_dst_nodes()]  # <---
+        h = self.conv2(mfgs[1], (h, h_dst))  # <---
         return h
     
 
